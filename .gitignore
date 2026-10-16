@@ -1,0 +1,58 @@
+# Credentials and private configuration
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
+.payment_api_key
+.payment_operator_key
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Wallet recovery and private runtime data
+recovery.json
+**/*wallet*/
+
+# Local databases, including SQLite sidecars
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite*
+*.db-wal
+*.db-shm
+*.db-journal
+*-wal
+*-shm
+*-journal
+
+# Dependencies, virtual environments, caches and generated bundles
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+*.tsbuildinfo
+*.egg-info/
+
+# Local backups and editor/OS artifacts
+*.bak
+*.bak.*
+*.backup
+*.before_*
+*.pre-*
+*~
+*.swp
+.DS_Store
+.claude/

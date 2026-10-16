@@ -1,0 +1,14 @@
+@import "../styles/index.css";
+
+/* Preserve the existing palette; tokens are available to future routes. */
+:root {
+  --rueda-background: #0b0b0b;
+  --rueda-surface: #121212;
+  --rueda-text: #fff;
+  --rueda-muted: rgb(255 255 255 / 60%);
+  --rueda-border: rgb(255 255 255 / 10%);
+  --rueda-accent: #C47A2C;
+  --rueda-container: 1400px;
+  --rueda-gutter: 1.5rem;
+  --rueda-radius: 0rem;
+}
