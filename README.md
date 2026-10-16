@@ -3,7 +3,7 @@
 Bilingual, concierge-first mobility prototype, initially focused on Medellín.
 
 **Team:** Rueda Mobility  
-**Members:** Kaylee, Tony, Sebastian — GitHub usernames pending.  
+**Members:** Kaylee, Tony, Sebastian 
 **Hackathon:** Agentic Dollars on Bitcoin  
 **Mandatory baseline deadline:** October 16, 2026, at 23:00 CEST (21:00 UTC).
 
