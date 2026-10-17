@@ -13,10 +13,13 @@ class TripDetails:
     ride_type: RideType | None = None
     pickup: str | None = None
     destination: str | None = None
+    pickup_city: str | None = None
+    time_zone: str | None = None
+    fare_currency: str | None = None
     departure_time: str | None = None
     passengers: int | None = None
     luggage: int | None = None
-    # Flight departure (ISO, Bogotá). Informational only: it is NOT the pickup
+    # Flight departure (ISO with pickup-local offset). Informational only: it is NOT the pickup
     # time. No airport buffer is applied until Rueda approves a policy.
     flight_time: str | None = None
     # 'departure' (pickup must be before it) or 'arrival' (informational only).
@@ -26,6 +29,7 @@ class TripDetails:
         required = (
             "ride_type",
             "pickup",
+            "pickup_city",
             "destination",
             "departure_time",
             "passengers",

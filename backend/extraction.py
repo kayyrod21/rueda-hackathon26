@@ -40,6 +40,7 @@ _PLACE = (
     rf"(?=\s+(?:{STOP_WORDS})\b|\s*[,.;!?]|\s+\d|\s*$)"
 )
 PICKUP_RES = [
+    re.compile(r"\b(?P<v>(?:miami|tampa|medellin|mia|tpa|mde)(?:\s+(?:international\s+)?(?:airport|aeropuerto))?)\s+(?:pickup|recogida)\b"),
     re.compile(r"(?:^|(?<=[\s,]))\bde\s+(?:la\s+)?(?P<v>q+)(?=\s|$|,)"),
     re.compile(r"(?:^|(?<=[\s,]))(?P<v>q+)(?=\s+(?:to|hasta|hacia|al|a)\s)"),
     re.compile(r"\b(?:pick(?:\s*-?\s*)?(?:me|us)?\s*up|pickup|pick-up)\s+(?:at|from|in)\s+" + _PLACE),
@@ -48,6 +49,7 @@ PICKUP_RES = [
     re.compile(r"\b(?:from|desde)\s+" + _PLACE),
 ]
 DEST_RES = [
+    re.compile(r"\b(?:from|desde)\s+[^,.;!?]+?\s+(?:to|hasta|hacia)\s+" + _PLACE),
     re.compile(r"\b(?:from|desde)\s+[^,.;!?]+?\s+a\s+" + _PLACE),
     re.compile(r"\b(?:to|hasta|hacia|al|towards|drop(?:\s*-?\s*off)?\s+at|dejar(?:me|nos)?\s+en)\s+" + _PLACE),
 ]
@@ -75,7 +77,8 @@ AFFIRMATIVES = {
     "confirm", "confirmed", "correct", "that is correct", "thats correct",
     "si", "si por favor", "si correcto", "si confirmo", "si confirmado",
     "confirmo", "confirmado", "correcto", "todo correcto", "si todo correcto",
-    "es correcto", "si es correcto",
+    "es correcto", "si es correcto", "si esta bien", "esta bien", "de acuerdo",
+    "dale", "perfecto", "asi es", "si confirmar", "confirmar",
 }
 NEGATIVES = {"no", "nope", "no thanks", "incorrect", "incorrecto", "change",
              "cambiar", "corregir", "wrong", "not correct", "no es correcto"}
@@ -103,15 +106,13 @@ EN_WORDS = {
 }
 
 
-ES_WORDS |= ES_WORDS_EXTRA
+ES_WORDS |= ES_WORDS_EXTRA | {"confirmar", "confirmado", "confirmada", "acuerdo", "dale", "perfecto", "bien"}
 SPANISH_GREETING = (r"\b(?:hola|buenas(?:\s+(?:tardes|noches))?|buenos\s+dias|"
                     r"que\s+tal|saludos)\b")
 EN_WORDS |= {"hi", "hello", "hey", "good", "morning", "afternoon", "evening", "thanks"}
 
 
 def detect_language(message: str) -> str | None:
-    if re.search(r"[áéíóúñ¿¡]", message.lower()):
-        return "es"
     words = re.findall(r"[a-z]+", normalize(message))
     es = sum(w in ES_WORDS for w in words)
     # Spanish verbs/phrases weigh more: they carry the sentence in Spanglish.
@@ -185,7 +186,7 @@ def detect_ride_type(norm: str) -> tuple[str | None, bool]:
         return "city_ride", True
     if re.search(AIRPORT_WORDS, norm):
         return "airport_transfer", False
-    if re.search(r"\b(ciudad|city|urbano|urban|ride|viaje|trayecto|carro|taxi)\b", norm):
+    if re.search(r"\b(ciudad|city|urbano|urban|ride|viaje|traslado|trayecto|carro|taxi)\b", norm):
         return "city_ride", False
     return None, False
 

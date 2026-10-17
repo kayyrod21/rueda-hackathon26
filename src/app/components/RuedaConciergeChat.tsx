@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { scrollChatToNewest } from "../lib/concierge/chatScroll";
 import { Bot, Send } from "lucide-react";
 
 type Booking = {
@@ -18,6 +20,7 @@ type ChatResponse = {
   booking: Booking | null;
   payments_enabled: boolean;
   demo_only: boolean;
+  language?: "en" | "es";
 };
 
 type Message = {
@@ -26,6 +29,10 @@ type Message = {
 };
 
 export function RuedaConciergeChat() {
+  const { i18n } = useTranslation();
+  const [language, setLanguage] = useState<string | null>(null);
+  const es = (language ?? i18n.language).startsWith("es");
+  const messageContainer = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -37,6 +44,10 @@ export function RuedaConciergeChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    scrollChatToNewest(messageContainer.current);
+  }, [messages, loading]);
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,6 +79,7 @@ export function RuedaConciergeChat() {
       const data: ChatResponse = await response.json();
 
       setConversationId(data.conversation_id);
+      if (data.language) setLanguage(data.language);
       setBooking(data.booking);
       setMessages((previous) => [
         ...previous,
@@ -79,7 +91,8 @@ export function RuedaConciergeChat() {
         {
           role: "assistant",
           content:
-            "I couldn't connect to the local concierge. Please try again.",
+            es ? "No pude conectar con el concierge local. Inténtalo de nuevo."
+              : "I couldn't connect to the local concierge. Please try again.",
         },
       ]);
     } finally {
@@ -90,9 +103,10 @@ export function RuedaConciergeChat() {
   return (
     <div className="flex min-h-[380px] flex-col gap-4">
       <div
-        className="flex max-h-[380px] min-h-[240px] flex-col gap-3 overflow-y-auto"
+        ref={messageContainer}
+        className="flex max-h-[380px] min-h-[240px] flex-col gap-3 overflow-y-auto overscroll-contain"
         role="log"
-        aria-label="Rueda concierge conversation"
+        aria-label={es ? "Conversación con Rueda" : "Rueda concierge conversation"}
         aria-live="polite"
       >
         {messages.map((message, index) => (
@@ -107,34 +121,33 @@ export function RuedaConciergeChat() {
             {message.role === "assistant" && (
               <Bot className="mb-2 h-4 w-4 text-white/50" />
             )}
-            {message.content}
+            <span className="whitespace-pre-wrap">{message.content}</span>
           </div>
         ))}
         {loading && (
-          <p className="text-xs text-white/40">Rueda is responding…</p>
+          <p className="text-xs text-white/40">{es ? "Rueda está respondiendo…" : "Rueda is responding…"}</p>
         )}
       </div>
 
       {booking && (
         <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
           <p className="text-xs uppercase tracking-wider text-white/40">
-            Demo booking
+            {es ? "Reserva de demostración" : "Demo booking"}
           </p>
           <p className="mt-1 text-lg text-white">
             {booking.amount} {booking.asset}
           </p>
           <p className="mt-1 text-xs text-white/60">
             {booking.status === "approved"
-              ? "Quote approved"
-              : "Awaiting your approval"}
+              ? (es ? "Reserva de demostración aprobada; no es aprobación de pago" : "Demo booking approved; payment approval is separate")
+              : (es ? "Pendiente de revisión del operador" : "Awaiting operator review")}
             {" · "}
-            Payment not started
+            {es ? "Pago no iniciado" : "Payment not started"}
           </p>
-          {booking.status === "awaiting_approval" && (
-            <p className="mt-2 text-xs text-white/50">
-              To approve, type: Apruebo {booking.amount} RUEDA
-            </p>
-          )}
+          <p className="mt-2 text-xs text-white/50">
+            {es ? "Checkout deshabilitado: requiere tarifa verificada y aprobación explícita del operador."
+              : "Checkout disabled: a verified fare and explicit operator approval are required."}
+          </p>
         </div>
       )}
 
@@ -142,8 +155,8 @@ export function RuedaConciergeChat() {
         <input
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder="Where would you like to go?"
-          aria-label="Message Rueda concierge"
+          placeholder={es ? "¿A dónde quieres ir?" : "Where would you like to go?"}
+          aria-label={es ? "Mensaje para Rueda" : "Message Rueda concierge"}
           maxLength={2000}
           disabled={loading}
           className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/40"
@@ -151,7 +164,7 @@ export function RuedaConciergeChat() {
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          aria-label="Send message"
+          aria-label={es ? "Enviar mensaje" : "Send message"}
           className="rounded-xl bg-white px-4 text-black disabled:opacity-40"
         >
           <Send className="h-4 w-4" />
@@ -159,7 +172,7 @@ export function RuedaConciergeChat() {
       </form>
 
       <p className="text-center text-[0.65rem] text-white/35">
-        Local demo · No real payment or driver dispatch
+        {es ? "Demostración local · Sin pago real ni despacho de conductor" : "Local demo · No real payment or driver dispatch"}
       </p>
     </div>
   );

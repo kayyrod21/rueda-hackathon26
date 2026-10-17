@@ -1,10 +1,10 @@
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
-BOGOTA = ZoneInfo("America/Bogota")
+UTC = timezone.utc
 
 MONTHS = {
     "january": 1, "enero": 1,
@@ -38,12 +38,16 @@ FORMAT_HELP = (
 INVALID_DATE = "That calendar date is invalid. Please try again."
 INVALID_TIME = "Please enter a valid time, such as 4 PM, 4:30 PM or 16:30."
 PAST = (
-    "That date and time have already passed in Medellín. "
+    "That date and time have already passed in the pickup city. "
     "Please choose a future departure date and time."
 )
+NONEXISTENT = "That local time does not exist because of daylight saving time. Please choose another time."
+AMBIGUOUS = "That local time occurs twice because of daylight saving time. Please choose an unambiguous time outside the repeated hour."
 # Spanish equivalents of the user-facing errors above (shown when the conversation is in Spanish).
 ES_ERRORS = {
-    PAST: "Esa fecha y hora ya pasaron en Medellín. Elige una fecha y hora de salida futuras.",
+    NONEXISTENT: "Esa hora local no existe por el cambio de horario de verano. Elige otra hora.",
+    AMBIGUOUS: "Esa hora local ocurre dos veces por el cambio de horario de verano. Elige una hora fuera de la hora repetida.",
+    PAST: "Esa fecha y hora ya pasaron en la ciudad de recogida. Elige una fecha y hora de salida futuras.",
     INVALID_DATE: "Esa fecha del calendario no es válida. Inténtalo de nuevo.",
     INVALID_TIME: "Ingresa una hora válida, por ejemplo 4 PM, 4:30 PM o 16:30.",
 }
@@ -53,8 +57,8 @@ _WEEKDAY_RE = "|".join(WEEKDAYS)
 
 
 def now() -> datetime:
-    """Current Bogotá time. Other modules must use this so tests can mock it."""
-    return datetime.now(BOGOTA)
+    """Trusted server UTC clock; never use a client-supplied date or browser zone."""
+    return datetime.now(UTC)
 
 
 def normalize(value: str) -> str:
@@ -170,13 +174,25 @@ def find_ambiguous_clock(text: str):
     return None, None
 
 
-def combine(day: date, clock: tuple[int, int]) -> datetime:
-    return datetime(day.year, day.month, day.day, clock[0], clock[1], tzinfo=BOGOTA)
+def combine(day: date, clock: tuple[int, int], time_zone: str) -> datetime:
+    """Reject nonexistent/ambiguous wall times instead of guessing a DST fold."""
+    zone = ZoneInfo(time_zone)
+    wall = datetime(day.year, day.month, day.day, clock[0], clock[1])
+    valid = []
+    for fold in (0, 1):
+        candidate = wall.replace(tzinfo=zone, fold=fold)
+        if candidate.astimezone(UTC).astimezone(zone).replace(tzinfo=None) == wall:
+            valid.append(candidate)
+    if not valid:
+        raise DateError(NONEXISTENT)
+    if len({candidate.utcoffset() for candidate in valid}) > 1:
+        raise DateError(AMBIGUOUS)
+    return valid[0]
 
 
-def parse_trip_date(value: str) -> tuple[str | None, str | None]:
+def parse_trip_date(value: str, time_zone: str) -> tuple[str | None, str | None]:
     text = normalize(value.strip())
-    current = now()
+    current = now().astimezone(ZoneInfo(time_zone))
     try:
         day, _ = find_date(text, current.date())
         clock, _ = find_time(text)
@@ -184,7 +200,10 @@ def parse_trip_date(value: str) -> tuple[str | None, str | None]:
         return None, str(exc)
     if day is None or clock is None:
         return None, FORMAT_HELP
-    departure = combine(day, clock)
-    if departure <= current:
+    try:
+        departure = combine(day, clock, time_zone)
+    except DateError as exc:
+        return None, str(exc)
+    if departure.astimezone(UTC) <= current.astimezone(UTC):
         return None, PAST
     return departure.isoformat(), None
