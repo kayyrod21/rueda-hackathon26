@@ -220,3 +220,67 @@ class BookingLocalizationTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+def test_usdt_typo_and_rgb_confirmation():
+    from datetime import datetime
+    from unittest.mock import patch
+
+    import conversation
+
+    with patch.object(conversation, "_rgb_demo_reply", wraps=conversation._rgb_demo_reply):
+        result = conversation.respond(
+            "I need a ride from Miami Airport to Miami Beach tomorrow at 9pm for 2 passengers"
+        )
+
+    key = result["conversation_id"]
+    confirmed = conversation.respond("yes", key)
+    assert confirmed["trip_confirmed"] is True
+
+    digital = conversation.respond("digital", key)
+    assert "BTC or USDT" in digital["reply"]
+
+    typo = conversation.respond("udst", key)
+    assert "Tron" in typo["reply"]
+
+    network = conversation.respond("rgb on bitcoin", key)
+    assert "USDT or RUEDA" in network["reply"]
+
+    selected = conversation.respond("usdt", key)
+    assert "You've selected USDT on RGB on Bitcoin" in selected["reply"]
+    assert selected["payment_selection"]["currency"] == "USDT"
+    assert selected["payment_selection"]["network"] == "rgb"
+    assert selected["payment_selection"]["executed"] is False
+    assert selected["payments_enabled"] is False
+    assert selected["booking"] is None
+
+def test_usdt_typo_and_rgb_confirmation():
+    from datetime import datetime
+    from unittest.mock import patch
+
+    import conversation
+
+    with patch.object(conversation, "_rgb_demo_reply", wraps=conversation._rgb_demo_reply):
+        result = conversation.respond(
+            "I need a ride from Miami Airport to Miami Beach tomorrow at 9pm for 2 passengers"
+        )
+
+    key = result["conversation_id"]
+    confirmed = conversation.respond("yes", key)
+    assert confirmed["trip_confirmed"] is True
+
+    digital = conversation.respond("digital", key)
+    assert "BTC or USDT" in digital["reply"]
+
+    typo = conversation.respond("udst", key)
+    assert "Tron" in typo["reply"]
+
+    network = conversation.respond("rgb on bitcoin", key)
+    assert "USDT or RUEDA" in network["reply"]
+
+    selected = conversation.respond("usdt", key)
+    assert "You've selected USDT on RGB on Bitcoin" in selected["reply"]
+    assert selected["payment_selection"]["currency"] == "USDT"
+    assert selected["payment_selection"]["network"] == "rgb"
+    assert selected["payment_selection"]["executed"] is False
+    assert selected["payments_enabled"] is False
+    assert selected["booking"] is None

@@ -587,7 +587,7 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
             conversation.stage = "btc_network"
             reply = ("Elegiste BTC. ¿Prefieres Bitcoin on-chain o Lightning?" if es
                      else "You chose BTC. Would you prefer Bitcoin on-chain or Lightning?")
-        elif re.search(r"\b(usdt|tether)\b", text):
+        elif re.search(r"\b(usdt|udst|tether)\b", text):
             conversation.currency = "USDT"
             conversation.network = None
             conversation.stage = "usdt_network"
@@ -639,11 +639,16 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
             conversation.currency = "RUEDA"
             conversation.stage = "complete"
             reply = _rgb_demo_reply(es)
-        elif re.search(r"\b(usdt|tether)\b", text):
+        elif re.search(r"\b(usdt|udst|tether)\b", text):
             conversation.currency = "USDT"
             conversation.stage = "complete"
-            reply = ("Preferencia guardada: USDT por RGB." if es else
-                     "Preference saved: USDT via RGB.")
+            reply = (
+                "Elegiste USDT sobre RGB en Bitcoin. Guardamos tu preferencia de pago. "
+                "Continuaremos cuando se confirme la tarifa de tu viaje."
+                if es else
+                "You've selected USDT on RGB on Bitcoin. Your payment preference has been saved. "
+                "We'll continue once your ride fare is confirmed."
+            )
         else:
             reply = ("Elige USDT o RUEDA." if es else
                      "Choose USDT or RUEDA.")
