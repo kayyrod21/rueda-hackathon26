@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import rgb_lib as rgb
 from fastapi import FastAPI, HTTPException, Header
 
@@ -9,33 +6,7 @@ app = FastAPI(
     version="0.2.0",
 )
 
-WALLET_DIR = Path.home() / "dev/rueda-rgb/rueda-test-wallet"
-ASSET_ID = "rgb:Jf~5_Vys-BJN7Gdj-UGcxEcR-FutiMwF-v~38rxx-2vYwt00"
-
-
-def load_wallet():
-    with (WALLET_DIR / "recovery.json").open() as f:
-        saved = json.load(f)
-
-    keys = rgb.SinglesigKeys(
-        account_xpub_vanilla=saved["account_xpub_vanilla"],
-        account_xpub_colored=saved["account_xpub_colored"],
-        vanilla_keychain=None,
-        master_fingerprint=saved["master_fingerprint"],
-        mnemonic=saved["mnemonic"],
-        witness_version=rgb.WitnessVersion.SEG_WIT_V0,
-    )
-
-    return rgb.Wallet(
-        rgb.WalletData(
-            data_dir=str(WALLET_DIR / "data"),
-            bitcoin_network=rgb.BitcoinNetwork.SIGNET_CUSTOM,
-            database_type=rgb.DatabaseType.SQLITE,
-            max_allocations_per_utxo=5,
-            supported_schemas=[rgb.AssetSchema.NIA],
-        ),
-        keys,
-    )
+from wallet_runtime import ASSET_ID, wallet_session
 
 
 @app.get("/health")
@@ -53,29 +24,27 @@ def wallet_status(
 ):
     require_payment_operator_key(x_payment_operator_key)
     try:
-        wallet = load_wallet()
+        with wallet_session() as wallet:
+            for asset in wallet.list_assets([]).nia:
+                if asset.asset_id == ASSET_ID:
+                    return {
+                        "network": "mutinynet",
+                        "asset": {
+                            "ticker": asset.ticker,
+                            "asset_id": asset.asset_id,
+                            "schema": "NIA",
+                        },
+                        "balance": {
+                            "settled": asset.balance.settled,
+                            "future": asset.balance.future,
+                            "spendable": asset.balance.spendable,
+                        },
+                        "balance_source": "local_wallet_cache",
+                        "blockchain_sync_performed": False,
+                        "payments_enabled": False,
+                    }
 
-        for asset in wallet.list_assets([]).nia:
-            if asset.asset_id == ASSET_ID:
-                return {
-                    "network": "mutinynet",
-                    "asset": {
-                        "ticker": asset.ticker,
-                        "asset_id": asset.asset_id,
-                        "schema": "NIA",
-                    },
-                    "balance": {
-                        "settled": asset.balance.settled,
-                        "future": asset.balance.future,
-                        "spendable": asset.balance.spendable,
-                    },
-                    "balance_source": "local_wallet_cache",
-                    "blockchain_sync_performed": False,
-                    "payments_enabled": False,
-                }
-
-        raise HTTPException(status_code=404, detail="RUEDA asset not found")
-
+            raise HTTPException(status_code=404, detail="RUEDA asset not found")
     except HTTPException:
         raise
     except Exception:
@@ -232,7 +201,9 @@ import sqlite3
 
 class PaymentRequestInput(BaseModel):
     booking_id: str = Field(min_length=1, max_length=100)
-    recipient_id: str = Field(min_length=1, max_length=500)
+    invoice: str = Field(min_length=1, max_length=4096)
+
+    model_config = {"extra": "forbid"}
 
 
 @app.post("/payments/requests", status_code=201)
@@ -243,7 +214,7 @@ def propose_payment(
     try:
         return create_payment_request(
             request.booking_id,
-            request.recipient_id,
+            request.invoice,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -259,16 +230,38 @@ from payment_auth import require_payment_operator_key
 from payment_store import approve_payment_request
 
 
+class PaymentApprovalInput(BaseModel):
+    approval_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    model_config = {"extra": "forbid"}
+
+
 @app.post("/payments/requests/{request_id}/approve")
 def approve_rgb_payment_request(
     request_id: str,
+    request: PaymentApprovalInput,
     authenticated: bool = Depends(require_payment_operator_key),
 ):
     try:
-        return approve_payment_request(request_id)
+        return approve_payment_request(request_id, request.approval_digest)
     except ValueError as exc:
         message = str(exc)
         raise HTTPException(
             status_code=404 if message == "Payment request not found" else 409,
             detail=message,
         )
+
+
+from payment_preflight import payment_preflight, PreflightError
+
+
+@app.post("/payments/requests/{request_id}/preflight")
+def preflight_rgb_payment_request(
+    request_id: str,
+    request: PaymentApprovalInput,
+    authenticated: bool = Depends(require_payment_operator_key),
+):
+    try:
+        return payment_preflight(request_id, request.approval_digest)
+    except PreflightError as exc:
+        raise HTTPException(status_code=exc.http_status, detail=exc.code) from None
