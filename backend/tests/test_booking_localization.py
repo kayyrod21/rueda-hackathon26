@@ -64,38 +64,105 @@ class BookingLocalizationTests(unittest.TestCase):
         self.assertFalse(changed['checkout_enabled'])
 
     def test_spanish_confirmation_and_payment_demo_language(self):
-        result=conversation.respond('Necesito traslado desde Miami aeropuerto hasta downtown mañana a las 3pm para dos pasajeros')
-        key=result['conversation_id']
-        self.assertEqual(result['language'],'es')
-        self.assertIn('America/New_York',result['reply'])
-        confirmed=conversation.respond('Sí, está bien',key)
+        result = conversation.respond(
+            'Necesito traslado desde Miami aeropuerto hasta downtown mañana a las 3pm para dos pasajeros'
+        )
+        key = result['conversation_id']
+        self.assertEqual(result['language'], 'es')
+        self.assertIn('America/New_York', result['reply'])
+
+        confirmed = conversation.respond('Sí, está bien', key)
         self.assertTrue(confirmed['trip_confirmed'])
-        self.assertIn('USD',confirmed['reply'])
-        self.assertIn('confirmados',confirmed['reply'])
-        conversation.respond('digitales',key)
-        demo=conversation.respond('RGB',key)
-        self.assertEqual(demo['language'],'es')
-        self.assertIn('activo de prueba',demo['reply'])
-        self.assertEqual(demo['payment_selection']['currency'],'RUEDA')
-        self.assertEqual(demo['payment_selection']['test_network'],'mutinynet')
-        self.assertEqual(demo['payment_selection']['request_status'],'not_created')
+        self.assertIn('USD', confirmed['reply'])
+
+        conversation.respond('digitales', key)
+        currency = conversation.respond('USDT', key)
+        self.assertIn('Tron', currency['reply'])
+
+        network = conversation.respond('RGB', key)
+        self.assertIn('RUEDA', network['reply'])
+
+        demo = conversation.respond('RUEDA', key)
+        self.assertEqual(demo['language'], 'es')
+        self.assertEqual(demo['payment_selection']['currency'], 'RUEDA')
+        self.assertEqual(demo['payment_selection']['network'], 'rgb')
+        self.assertEqual(demo['payment_selection']['test_network'], 'mutinynet')
+        self.assertEqual(demo['payment_selection']['request_status'], 'not_created')
         self.assertFalse(demo['payment_selection']['executed'])
         self.assertFalse(demo['checkout_enabled'])
 
-    def test_legacy_btc_rgb_route_cannot_claim_btc_via_rgb(self):
-        result=self.trip()
-        key=result['conversation_id']
-        for message in ['yes','digital','BTC','RGB']:result=conversation.respond(message,key)
-        self.assertNotIn('BTC via RGB',result['reply'])
-        self.assertIn('RUEDA test asset',result['reply'])
-        self.assertEqual(result['payment_selection']['currency'],'RUEDA')
-        self.assertFalse(result['payments_enabled'])
-        self.assertIsNone(result['booking'])
+    def test_btc_cannot_select_rgb_as_a_network(self):
+        result = self.trip()
+        key = result['conversation_id']
+        for message in ['yes', 'digital', 'BTC']:
+            result = conversation.respond(message, key)
+
+        self.assertEqual(result['payment_selection']['currency'], 'BTC')
+
+        rejected = conversation.respond('RGB', key)
+        self.assertIn('on-chain or Lightning', rejected['reply'])
+        self.assertEqual(rejected['payment_selection']['currency'], 'BTC')
+        self.assertIsNone(rejected['payment_selection']['network'])
+        self.assertFalse(rejected['payments_enabled'])
+
+        selected = conversation.respond('Lightning', key)
+        self.assertEqual(selected['payment_selection']['currency'], 'BTC')
+        self.assertEqual(selected['payment_selection']['network'], 'lightning')
+        self.assertFalse(selected['payment_selection']['executed'])
+        self.assertIsNone(selected['booking'])
+
+    def test_usdt_tron_demo_selection(self):
+        result = self.trip()
+        key = result["conversation_id"]
+        for message in ["yes", "digital", "USDT", "Tron TRC-20"]:
+            result = conversation.respond(message, key)
+
+        payment = result["payment_selection"]
+        self.assertEqual(payment["currency"], "USDT")
+        self.assertEqual(payment["network"], "tron-trc20")
+        self.assertFalse(payment["executed"])
+        self.assertFalse(result["checkout_enabled"])
+        self.assertIsNone(result["booking"])
+
+    def test_rgb_lightning_asset_selection(self):
+        result = self.trip()
+        key = result["conversation_id"]
+        for message in ["yes", "digital", "USDT", "RGB over Lightning"]:
+            result = conversation.respond(message, key)
+
+        self.assertIn("RUEDA", result["reply"])
+        self.assertEqual(result["payment_selection"]["network"], "rgb-lightning")
+
+        result = conversation.respond("RUEDA", key)
+        payment = result["payment_selection"]
+        self.assertEqual(payment["currency"], "RUEDA")
+        self.assertEqual(payment["network"], "rgb-lightning")
+        self.assertEqual(payment["request_status"], "not_created")
+        self.assertFalse(payment["executed"])
+        self.assertFalse(result["payments_enabled"])
+        self.assertIsNone(result["booking"])
 
     def test_english_medellin_name_does_not_switch_language(self):
         result=self.trip('Medellín')
         self.assertEqual(result['language'],'en')
-        self.assertIn('Please confirm',result['reply'])
+        self.assertIn('Please review',result['reply'])
+
+    def test_language_stays_locked_until_explicit_switch(self):
+        result = self.trip("Miami")
+        key = result["conversation_id"]
+        self.assertEqual(result["language"], "en")
+
+        result = conversation.respond("dos pasajeros", key)
+        self.assertEqual(result["language"], "en")
+
+        result = conversation.respond("Switch to Spanish", key)
+        self.assertEqual(result["language"], "es")
+
+        result = conversation.respond("two passengers", key)
+        self.assertEqual(result["language"], "es")
+
+        result = conversation.respond("Habla inglés", key)
+        self.assertEqual(result["language"], "en")
 
     def test_spanish_medellin_route_and_confirmation(self):
         result=conversation.respond('Necesito traslado desde Medellín hasta El Poblado mañana a las 3pm para dos pasajeros')

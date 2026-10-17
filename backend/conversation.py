@@ -187,16 +187,10 @@ def _summary(conversation, lang: str) -> str:
         if t.flight_time:
             kind = "llegada del vuelo" if t.flight_direction == "arrival" else "vuelo"
             text += f", {kind} {_fmt(t.flight_time)} ({_local_label(conversation, t.flight_time)})"
-        text += (f". La idoneidad del vehículo para {t.passengers} pasajeros"
-                 + (f" y {t.luggage} maletas" if t.luggage is not None else "")
-                 + " requiere una regla aprobada de Rueda.")
-        if close is not None:
-            text += (" El horario del traslado al aeropuerto está sujeto a la "
-                     "política de Rueda.")
-        text += f" Tarifa pendiente de verificación en {t.fare_currency}; checkout deshabilitado."
-        return text + (" ¿Todo está correcto? Responde sí para confirmar los "
-                       "detalles del viaje. Esto no autoriza ningún pago.")
-    text = (f"Please confirm your {ride}: pickup at {t.pickup}, destination "
+        text += "."
+        return text + " ¿Son correctos estos datos del viaje?"
+
+    text = (f"Please review your {ride}: pickup at {t.pickup}, destination "
             f"{t.destination}, departure {_fmt(t.departure_time)} ({local}), "
             f"{t.passengers} passengers")
     if t.luggage is not None:
@@ -204,14 +198,7 @@ def _summary(conversation, lang: str) -> str:
     if t.flight_time:
         kind = "flight arrival" if t.flight_direction == "arrival" else "flight"
         text += f", {kind} {_fmt(t.flight_time)} ({_local_label(conversation, t.flight_time)})"
-    text += (f". Vehicle suitability for {t.passengers} passengers"
-             + (f" and {t.luggage} suitcases" if t.luggage is not None else "")
-             + " needs an approved Rueda rule.")
-    if close is not None:
-        text += " Airport-transfer timing is subject to Rueda's policy."
-    text += f" Fare awaiting verification in {t.fare_currency}; checkout disabled."
-    return text + (" Is everything correct? Reply yes or sí to confirm the trip "
-                   "details. This does not authorize payment.")
+    return text + ". Does everything look correct?"
 
 
 def _set_departure(conversation, when: datetime, lang: str) -> str | None:
@@ -461,7 +448,25 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
     lang = extraction.detect_language(message)
     if _payment_choice_only(message):
         lang = None  # bare payment choices ('on-chain', 'btc', ...) are language-neutral
-    if lang:  # undetermined messages keep the previous language
+    switch_to_es = re.search(
+        r"\b(?:switch|change)\s+(?:to\s+)?spanish\b|"
+        r"\b(?:habla|hablemos|cambia|cambiar)\s+(?:a\s+|al\s+|en\s+)?"
+        r"(?:espanol|español)\b",
+        message, re.IGNORECASE,
+    )
+    switch_to_en = re.search(
+        r"\b(?:switch|change)\s+(?:to\s+)?english\b|"
+        r"\b(?:habla|hablemos|cambia|cambiar)\s+(?:a\s+|al\s+|en\s+)?"
+        r"(?:ingles|inglés)\b",
+        message, re.IGNORECASE,
+    )
+    if switch_to_es and not switch_to_en:
+        conversation.language = "es"
+        conversation.language_detected = True
+    elif switch_to_en and not switch_to_es:
+        conversation.language = "en"
+        conversation.language_detected = True
+    elif lang and not conversation.language_detected:
         conversation.language = lang
         conversation.language_detected = True
     lang = conversation.language
@@ -559,9 +564,8 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
         if re.search(r"\b(digital|digitale|digitales|crypto|cripto)\b", text):
             conversation.payment_category = "digital"
             conversation.stage = "digital_currency"
-            reply = ("¿Quieres explorar RUEDA, el activo de prueba sobre RGB en Mutinynet, "
-                     "o una preferencia futura de BTC o USDT? Todo sigue siendo una demostración." if es
-                     else "Explore RUEDA, the test asset on RGB on Mutinynet, or a planned BTC or USDT preference? All selections remain a demo.")
+            reply = ("¿Prefieres BTC o USDT?" if es
+                     else "Would you prefer BTC or USDT?")
         elif re.search(r"\b(traditional|tradicional|cash|efectivo|card|tarjeta)\b", text):
             conversation.payment_category = "traditional"
             conversation.stage = "complete"
@@ -578,73 +582,72 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
 
     elif conversation.stage == "digital_currency":
         es = lang == "es"
-        if re.search(r"\b(rgb|rueda)\b", text):
-            conversation.currency = "RUEDA"
-            conversation.network = "rgb"
-            conversation.stage = "complete"
-            reply = _rgb_demo_reply(es)
-        elif re.search(r"\b(btc|bitcoin)\b", text):
+        if re.search(r"\b(btc|bitcoin)\b", text):
             conversation.currency = "BTC"
+            conversation.network = None
             conversation.stage = "btc_network"
-            reply = (
-                "Bitcoin seleccionado. ¿Qué opción te interesa: on-chain, Lightning "
-                "o Ark? RGB usa el activo de prueba RUEDA en Mutinynet, no BTC. Los pagos no están "
-                "habilitados." if es else
-                "Bitcoin selected. Which route interests you: on-chain, "
-                "Lightning or Ark? RGB uses the RUEDA test asset on Mutinynet, not BTC. These are demo selections, "
-                "not enabled payment methods."
-            )
+            reply = ("Elegiste BTC. ¿Prefieres Bitcoin on-chain o Lightning?" if es
+                     else "You chose BTC. Would you prefer Bitcoin on-chain or Lightning?")
         elif re.search(r"\b(usdt|tether)\b", text):
             conversation.currency = "USDT"
+            conversation.network = None
             conversation.stage = "usdt_network"
-            reply = (
-                "Seleccionaste USDT. La disponibilidad de redes y cualquier intercambio "
-                "entre cadenas dependerán de las integraciones compatibles. Todavía no "
-                "hay ninguna red USDT ni intercambio habilitado." if es else
-                "USDT selected. Network availability and any cross-chain "
-                "swap will depend on supported integrations. "
-                "No USDT network or swap is enabled yet."
-            )
+            reply = ("Elegiste USDT. ¿Prefieres Tron (TRC-20), RGB en Bitcoin "
+                     "o RGB sobre Lightning?" if es else
+                     "You chose USDT. Would you prefer Tron (TRC-20), RGB on Bitcoin, "
+                     "or RGB over Lightning?")
         else:
-            reply = "Elige RUEDA sobre RGB, BTC o USDT." if es else "Choose RUEDA on RGB, BTC or USDT."
+            reply = "¿Prefieres BTC o USDT?" if es else "Would you prefer BTC or USDT?"
 
     elif conversation.stage == "btc_network":
         es = lang == "es"
-        options = {
-            "on-chain": r"\b(on.chain|onchain|cadena)\b",
-            "lightning": r"\b(lightning|ln)\b",
-            "rgb": r"\brgb\b",
-            "ark": r"\bark\b",
-        }
-        selected = next(
-            (name for name, pattern in options.items() if re.search(pattern, text)),
-            None,
-        )
-        if selected:
-            conversation.network = selected
-            conversation.stage = "complete"
-            if selected == 'rgb':
-                conversation.currency = 'RUEDA'
-                reply = _rgb_demo_reply(es)
-            else:
-                reply = (
-                    f"Seleccionaste BTC mediante {selected}. Esta es solo una "
-                    "preferencia de demostración. No se ha generado ninguna dirección de "
-                    "pago, factura ni transacción." if es else
-                    f"You selected BTC via {selected}. This is a demo preference "
-                    "only. No payment address, invoice, or transaction has been created."
-                )
+        if re.search(r"\b(lightning|ln)\b", text):
+            conversation.network = "lightning"
+        elif re.search(r"\b(on.chain|onchain|cadena|bitcoin)\b", text):
+            conversation.network = "on-chain"
         else:
-            reply = ("Elige on-chain, Lightning o Ark; RGB es una demostración de RUEDA." if es
-                     else "Choose on-chain, Lightning or Ark; RGB is a RUEDA demo.")
+            conversation.network = None
+        if conversation.network:
+            conversation.stage = "complete"
+            reply = ("Preferencia guardada: BTC por " if es else
+                     "Preference saved: BTC via ") + conversation.network + "."
+        else:
+            reply = ("Elige Bitcoin on-chain o Lightning." if es else
+                     "Choose Bitcoin on-chain or Lightning.")
 
     elif conversation.stage == "usdt_network":
-        reply = (
-            "Las integraciones de redes USDT e intercambios todavía no están disponibles "
-            "en este prototipo. No se ha iniciado ningún pago." if lang == "es" else
-            "USDT network and swap integrations are not available in this "
-            "prototype yet. No payment has been initiated."
-        )
+        es = lang == "es"
+        if re.search(r"\b(tron|trc.?20)\b", text):
+            conversation.network = "tron-trc20"
+            conversation.stage = "complete"
+            reply = ("Preferencia guardada: USDT por Tron (TRC-20)." if es else
+                     "Preference saved: USDT via Tron (TRC-20).")
+        elif re.search(r"\b(rgb)\b", text):
+            conversation.network = ("rgb-lightning"
+                                    if re.search(r"\b(lightning|ln)\b", text)
+                                    else "rgb")
+            conversation.stage = "rgb_asset"
+            reply = ("¿Qué activo RGB prefieres: USDT o RUEDA?" if es else
+                     "Which RGB asset would you prefer: USDT or RUEDA?")
+        else:
+            reply = ("Elige Tron (TRC-20), RGB en Bitcoin o RGB sobre Lightning."
+                     if es else
+                     "Choose Tron (TRC-20), RGB on Bitcoin, or RGB over Lightning.")
+
+    elif conversation.stage == "rgb_asset":
+        es = lang == "es"
+        if re.search(r"\b(rueda)\b", text):
+            conversation.currency = "RUEDA"
+            conversation.stage = "complete"
+            reply = _rgb_demo_reply(es)
+        elif re.search(r"\b(usdt|tether)\b", text):
+            conversation.currency = "USDT"
+            conversation.stage = "complete"
+            reply = ("Preferencia guardada: USDT por RGB." if es else
+                     "Preference saved: USDT via RGB.")
+        else:
+            reply = ("Elige USDT o RUEDA." if es else
+                     "Choose USDT or RUEDA.")
 
     else:
         reply = (
