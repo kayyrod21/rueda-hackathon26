@@ -425,12 +425,13 @@ def _payment_choice_only(message: str) -> bool:
 
 
 def _rgb_demo_reply(es):
-    return ("Seleccionaste una preferencia de demostración: RUEDA, activo de prueba sobre RGB en Mutinynet. "
-            "No es BTC ni una tarifa verificada. No se creó ni aprobó una solicitud de pago y no se ejecutó ningún pago. "
-            "El checkout requiere una tarifa verificada y aprobación explícita del operador." if es else
-            "Demo preference selected: RUEDA test asset on RGB on Mutinynet. This is not BTC or a verified fare. "
-            "No payment request was created or approved, and no payment was executed. "
-            "Checkout requires a verified fare and explicit operator approval.")
+    return (
+        "Elegiste RUEDA sobre RGB en Bitcoin. Guardamos tu preferencia de pago. "
+        "Continuaremos cuando se confirme la tarifa de tu viaje."
+        if es else
+        "You've selected RUEDA on RGB on Bitcoin. Your payment preference has been saved. "
+        "We'll continue once your ride fare is confirmed."
+    )
 
 
 def respond(message: str, conversation_id: str | None = None) -> dict:
@@ -545,15 +546,13 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
             conversation.confirmed = True
             if lang == "es":
                 reply = (
-                    "Detalles del viaje confirmados. Todavía no hay una tarifa verificada "
-                    f"en {conversation.trip.fare_currency}. El checkout requiere tarifa verificada y aprobación explícita del operador. ¿Prefieres pagos "
-                    "tradicionales o pagos digitales para esta demostración?"
+                    "Los detalles de tu viaje están confirmados. "
+                    "¿Cómo prefieres pagar: pago tradicional o pago digital?"
                 )
             else:
                 reply = (
-                    f"Trip details confirmed. A verified fare in {conversation.trip.fare_currency} is not yet available, "
-                    "so checkout remains disabled; explicit operator approval is also required. Would you prefer traditional "
-                    "payments or digital payments for this demo?"
+                    "Your trip details are confirmed. "
+                    "How would you like to pay: traditional payment or digital payment?"
                 )
         else:
             conversation.stage = "trip_confirmation" if complete else "ride"
@@ -651,11 +650,9 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
 
     else:
         reply = (
-            "Hemos registrado tu preferencia de pago para esta demostración local. "
-            "No se ha enviado ninguna reserva ni se ha iniciado ningún pago."
+            "Tu preferencia de pago está guardada. Te avisaremos cuando podamos continuar con tu viaje."
             if lang == "es" else
-            "Your payment preference has been noted for this local demo. "
-            "No booking has been dispatched and no payment has been initiated."
+            "Your payment preference is saved. We'll let you know when we can continue with your ride."
         )
 
     conversation.messages.append({"role": "assistant", "content": reply})

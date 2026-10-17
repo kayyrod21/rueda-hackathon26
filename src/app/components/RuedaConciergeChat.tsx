@@ -132,21 +132,21 @@ export function RuedaConciergeChat() {
       {booking && (
         <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
           <p className="text-xs uppercase tracking-wider text-white/40">
-            {es ? "Reserva de demostración" : "Demo booking"}
+            {es ? "Resumen del viaje" : "Trip summary"}
           </p>
           <p className="mt-1 text-lg text-white">
             {booking.amount} {booking.asset}
           </p>
           <p className="mt-1 text-xs text-white/60">
             {booking.status === "approved"
-              ? (es ? "Reserva de demostración aprobada; no es aprobación de pago" : "Demo booking approved; payment approval is separate")
-              : (es ? "Pendiente de revisión del operador" : "Awaiting operator review")}
+              ? (es ? "Detalles revisados" : "Details reviewed")
+              : (es ? "Pendiente de confirmación" : "Awaiting confirmation")}
             {" · "}
             {es ? "Pago no iniciado" : "Payment not started"}
           </p>
           <p className="mt-2 text-xs text-white/50">
-            {es ? "Checkout deshabilitado: requiere tarifa verificada y aprobación explícita del operador."
-              : "Checkout disabled: a verified fare and explicit operator approval are required."}
+            {es ? "Te avisaremos cuando esté disponible el siguiente paso."
+              : "We’ll let you know when the next step is available."}
           </p>
         </div>
       )}
@@ -172,7 +172,7 @@ export function RuedaConciergeChat() {
       </form>
 
       <p className="text-center text-[0.65rem] text-white/35">
-        {es ? "Demostración local · Sin pago real ni despacho de conductor" : "Local demo · No real payment or driver dispatch"}
+        Rueda Mobility · Ride concierge
       </p>
     </div>
   );

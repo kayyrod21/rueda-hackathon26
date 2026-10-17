@@ -28,7 +28,7 @@ class BookingLocalizationTests(unittest.TestCase):
                 self.assertIn(city,result['reply']);self.assertIn(zone,result['reply'])
                 self.assertIn('UTC'+offset,result['reply'])
                 confirmed=conversation.respond('yes',result['conversation_id'])
-                self.assertIn(currency,confirmed['reply'])
+                self.assertEqual(confirmed['trip']['fare_currency'], currency)
                 self.assertIsNone(confirmed['verified_fare'])
                 self.assertFalse(confirmed['checkout_enabled'])
                 self.assertFalse(confirmed['operator_approved'])
@@ -73,7 +73,7 @@ class BookingLocalizationTests(unittest.TestCase):
 
         confirmed = conversation.respond('Sí, está bien', key)
         self.assertTrue(confirmed['trip_confirmed'])
-        self.assertIn('USD', confirmed['reply'])
+        self.assertEqual(confirmed['trip']['fare_currency'], 'USD')
 
         conversation.respond('digitales', key)
         currency = conversation.respond('USDT', key)
@@ -170,7 +170,7 @@ class BookingLocalizationTests(unittest.TestCase):
         self.assertIn('America/Bogota',result['reply'])
         confirmed=conversation.respond('sí, confirmo',result['conversation_id'])
         self.assertTrue(confirmed['trip_confirmed'])
-        self.assertIn('COP',confirmed['reply'])
+        self.assertEqual(confirmed['trip']['fare_currency'], 'COP')
 
     def test_dst_spring_gap_and_fall_fold_are_rejected(self):
         for day,clock,error in [(date(2026,3,8),(2,30),trip_dates.NONEXISTENT),
