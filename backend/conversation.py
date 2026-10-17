@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from uuid import uuid4
 from trip_details import TripDetails
 import extraction
+import demo_fares
 import trip_dates
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -17,6 +18,7 @@ class Conversation:
     ride_type: str | None = None
     trip: TripDetails = field(default_factory=TripDetails)
     stage: str = "ride"
+    fare_estimate: dict | None = None
     payment_category: str | None = None
     currency: str | None = None
     network: str | None = None
@@ -427,10 +429,10 @@ def _payment_choice_only(message: str) -> bool:
 def _rgb_demo_reply(es):
     return (
         "Elegiste RUEDA sobre RGB en Bitcoin. Guardamos tu preferencia de pago. "
-        "Continuaremos cuando se confirme la tarifa de tu viaje."
+        "Te avisaremos cuando tu viaje esté listo para continuar con el pago."
         if es else
         "You've selected RUEDA on RGB on Bitcoin. Your payment preference has been saved. "
-        "We'll continue once your ride fare is confirmed."
+        "We'll notify you when your ride is ready for checkout."
     )
 
 
@@ -512,6 +514,7 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
         reset_note = ""
         if (changed or error or questions) and (conversation.confirmed or not in_trip):
             conversation.confirmed = False
+            conversation.fare_estimate = None
             conversation.payment_category = None
             conversation.currency = None
             conversation.network = None
@@ -542,21 +545,57 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
             reply = ("Esos datos coinciden con tu viaje; no hubo cambios." if lang == "es"
                      else "Those details match your current trip; nothing changed.")
         elif conversation.stage == "trip_confirmation" and simple in extraction.AFFIRMATIVES:
-            conversation.stage = "payment_category"
             conversation.confirmed = True
-            if lang == "es":
+            conversation.fare_estimate = demo_fares.estimate(conversation.trip)
+            if conversation.fare_estimate:
+                conversation.stage = "fare_confirmation"
+                amount = conversation.fare_estimate["amount"]
+                currency = conversation.fare_estimate["currency"]
                 reply = (
-                    "Los detalles de tu viaje están confirmados. "
-                    "¿Cómo prefieres pagar: pago tradicional o pago digital?"
+                    f"La tarifa estimada de tu viaje es {amount} {currency}. El precio final puede variar. "
+                    "¿Quieres continuar?"
+                    if lang == "es" else
+                    f"Your estimated fare is {amount} {currency}. The final price may vary. "
+                    "Would you like to continue?"
                 )
             else:
+                conversation.stage = "payment_category"
                 reply = (
+                    "Los detalles de tu viaje están confirmados. "
+                    "Aún no tenemos una tarifa estimada para esta ruta. "
+                    "¿Prefieres pago tradicional o digital?"
+                    if lang == "es" else
                     "Your trip details are confirmed. "
-                    "How would you like to pay: traditional payment or digital payment?"
+                    "A fare estimate isn't available for this route yet. "
+                    "Would you prefer traditional or digital payment?"
                 )
         else:
             conversation.stage = "trip_confirmation" if complete else "ride"
             reply = _what_to_change(ex, lang, simple)
+
+    elif conversation.stage == "fare_confirmation":
+        if simple in extraction.AFFIRMATIVES:
+            conversation.stage = "payment_category"
+            reply = (
+                "¿Cómo prefieres pagar: pago tradicional o digital?"
+                if lang == "es" else
+                "How would you like to pay: traditional or digital?"
+            )
+        elif simple in extraction.NEGATIVES:
+            conversation.stage = "trip_confirmation"
+            conversation.confirmed = False
+            conversation.fare_estimate = None
+            reply = (
+                "Entendido. ¿Qué datos del viaje quieres cambiar?"
+                if lang == "es" else
+                "Understood. What trip details would you like to change?"
+            )
+        else:
+            reply = (
+                "¿Quieres continuar con esta tarifa estimada de demostración? Responde sí o no."
+                if lang == "es" else
+                "Would you like to continue with this demo fare estimate? Please answer yes or no."
+            )
 
     elif conversation.stage == "payment_category":
         es = lang == "es"
@@ -644,10 +683,10 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
             conversation.stage = "complete"
             reply = (
                 "Elegiste USDT sobre RGB en Bitcoin. Guardamos tu preferencia de pago. "
-                "Continuaremos cuando se confirme la tarifa de tu viaje."
+                "Te avisaremos cuando tu viaje esté listo para continuar con el pago."
                 if es else
                 "You've selected USDT on RGB on Bitcoin. Your payment preference has been saved. "
-                "We'll continue once your ride fare is confirmed."
+                "We'll notify you when your ride is ready for checkout."
             )
         else:
             reply = ("Elige USDT o RUEDA." if es else
@@ -667,6 +706,7 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
         "booking": None,
         "language": conversation.language,
         "verified_fare": None,
+        "fare_estimate": conversation.fare_estimate,
         "operator_approved": False,
         "checkout_enabled": False,
         "trip": conversation.trip.to_dict(),

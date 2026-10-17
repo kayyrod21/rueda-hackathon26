@@ -173,6 +173,9 @@ export function RuedaConciergeChat() {
 
       <p className="text-center text-[0.65rem] text-white/35">
         Rueda Mobility · Ride concierge
+        <span className="block text-white/30">
+          Demo environment · Illustrative fares
+        </span>
       </p>
     </div>
   );
