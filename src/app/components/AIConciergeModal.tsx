@@ -330,9 +330,9 @@ export function AIConciergeModal({
           <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] px-5 pb-4 pt-5 md:rounded-t-2xl md:px-6 md:pt-6">
             <Bot className="h-5 w-5 text-white/55" strokeWidth={1.5} />
             <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium tracking-wide text-white/90">
+              <DialogPrimitive.Title className="text-sm font-medium tracking-wide text-white/90">
                 AI Concierge
-              </span>
+              </DialogPrimitive.Title>
               {conciergeEntrySource === "executive_detail" ? (
                 <span className="text-[0.65rem] tracking-wide text-[#C47A2C]/80">
                   Executive · from service detail

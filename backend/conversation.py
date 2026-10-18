@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ride_provider import ride_provider
 import re
 from dataclasses import dataclass, field
 from uuid import uuid4
@@ -672,6 +673,26 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
                      if es else
                      "Choose Tron (TRC-20), RGB on Bitcoin, or RGB over Lightning.")
 
+    elif conversation.stage == "rgb_usdt_unavailable":
+        es = lang == "es"
+        if re.search(r"\b(rueda)\b", text) or simple in extraction.AFFIRMATIVES:
+            conversation.currency = "RUEDA"
+            conversation.stage = "complete"
+            reply = _rgb_demo_reply(es)
+        elif simple in extraction.NEGATIVES:
+            conversation.stage = "rgb_asset"
+            reply = (
+                "Puedes elegir RUEDA para continuar o USDT como preferencia no disponible."
+                if es else
+                "You can choose RUEDA to continue, or USDT as an unavailable preference."
+            )
+        else:
+            reply = (
+                "Responde sí para cambiar a RUEDA, o no para revisar las opciones."
+                if es else
+                "Reply yes to switch to RUEDA, or no to review your options."
+            )
+
     elif conversation.stage == "rgb_asset":
         es = lang == "es"
         if re.search(r"\b(rueda)\b", text):
@@ -680,13 +701,15 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
             reply = _rgb_demo_reply(es)
         elif re.search(r"\b(usdt|udst|tether)\b", text):
             conversation.currency = "USDT"
-            conversation.stage = "complete"
+            conversation.stage = "rgb_usdt_unavailable"
             reply = (
-                "Elegiste USDT sobre RGB en Bitcoin. Guardamos tu preferencia de pago. "
-                "Te avisaremos cuando tu viaje esté listo para continuar con el pago."
+                "USDT sobre RGB todavía no está habilitado para pagos en Rueda. "
+                "Puedes usar RUEDA en Mutinynet para continuar, sin cambiar los detalles del viaje. "
+                "¿Quieres cambiar a RUEDA?"
                 if es else
-                "You've selected USDT on RGB on Bitcoin. Your payment preference has been saved. "
-                "We'll notify you when your ride is ready for checkout."
+                "USDT on RGB is not yet enabled for payments in Rueda. "
+                "You can use RUEDA on Mutinynet to continue without changing your trip. "
+                "Would you like to switch to RUEDA?"
             )
         else:
             reply = ("Elige USDT o RUEDA." if es else
@@ -699,11 +722,40 @@ def respond(message: str, conversation_id: str | None = None) -> dict:
             "Your payment preference is saved. We'll let you know when we can continue with your ride."
         )
 
+    # Create one simulated provider booking after payment selection.
+    # This is NOT a real provider reservation or a verified payment.
+    demo_booking = getattr(conversation, "demo_booking", None)
+    if (
+        conversation.stage == "complete"
+        and conversation.confirmed
+        and conversation.payment_category == "digital"
+        and conversation.currency in ("RUEDA", "USDT")
+    ):
+        if demo_booking is None:
+            demo_booking = ride_provider.create_booking(conversation.trip.to_dict())
+            conversation.demo_booking = demo_booking
+        if "We'll notify you" in reply or "Te avisaremos" in reply:
+            if lang == "es":
+                reply = reply.split("Te avisaremos")[0].strip()
+                reply += (
+                    f" Solicitud de viaje creada: {demo_booking['booking_id']}. "
+                    "Se requiere el pago para confirmar la reserva. La asignación del conductor está pendiente. "
+                    "Siguiente paso: completar el pago."
+                )
+            else:
+                reply = reply.split("We'll notify you")[0].strip()
+                reply += (
+                    f" Ride request created: {demo_booking['booking_id']}. "
+                    "Payment is required before confirmation. Driver assignment is pending. "
+                    "Next step: complete payment."
+                )
+
     conversation.messages.append({"role": "assistant", "content": reply})
     return {
         "conversation_id": conversation.conversation_id,
         "reply": reply,
         "booking": None,
+        "demo_ride": getattr(conversation, "demo_booking", None),
         "language": conversation.language,
         "verified_fare": None,
         "fare_estimate": conversation.fare_estimate,

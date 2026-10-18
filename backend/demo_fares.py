@@ -6,7 +6,7 @@ from decimal import Decimal
 
 PRESETS = (
     ("Miami", "USD", ("miami airport", "mia", "miami international airport"),
-     ("miami beach",), Decimal("35.00")),
+     ("miami beach", "miami beahc"), Decimal("35.00")),
     ("Miami", "USD", ("miami airport", "mia", "miami international airport"),
      ("downtown miami", "downtown"), Decimal("28.00")),
     ("Medellín", "COP", ("medellin", "medellín"),

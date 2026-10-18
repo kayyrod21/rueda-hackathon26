@@ -397,6 +397,18 @@ def extract(message: str, today: date) -> Extraction:
         rf"\bfor\s+{NUM}\b(?!\s*(?::|am|pm|a\.m|p\.m|/|de\b|{BAGS}|hours?|minutes?))",
     ]
     values = list(dict.fromkeys(_all_values(people, work)))
+
+    # "2 for tomorrow at 9 pm": the leading number is the party size,
+    # not part of the date or departure time.
+    leading_party = re.match(
+        rf"^\s*({NUM})\s+for\s+(?:tomorrow|today|tonight|manana|hoy|esta noche)\b",
+        norm,
+    )
+    if leading_party:
+        party_size = to_int(leading_party.group(1))
+        if 1 <= party_size <= 20 and party_size not in values:
+            values.append(party_size)
+
     if len(values) > 1:
         ex.conflicts["passengers"] = values
     elif values:
